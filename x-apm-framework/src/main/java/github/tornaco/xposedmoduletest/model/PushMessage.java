@@ -56,7 +56,7 @@ public class PushMessage implements Parcelable {
         title = in.readString();
         message = in.readString();
         type = in.readInt();
-        payload = in.readStringArray();
+        payload = in.createStringArray();
         timeMills = in.readLong();
         from = in.readInt();
         messageId = in.readString();

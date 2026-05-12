@@ -33,6 +33,29 @@ allprojects {
     }
 }
 
+subprojects { subproject ->
+    subproject.plugins.withId('com.android.application') {
+        configureAndroidBootClasspath(subproject)
+    }
+    subproject.plugins.withId('com.android.library') {
+        configureAndroidBootClasspath(subproject)
+    }
+}
+
+def configureAndroidBootClasspath(Project subproject) {
+    def hiddenApi = [
+            rootProject.file('hidden-api/android-27.jar'),
+            rootProject.file('hidden-api/services-27.jar')
+    ].findAll { it.exists() }
+    if (hiddenApi.isEmpty()) {
+        return
+    }
+    def hiddenApiPath = hiddenApi.collect { it.absolutePath }.join(File.pathSeparator)
+    subproject.tasks.withType(JavaCompile) {
+        options.compilerArgs.add("-Xbootclasspath/p:${hiddenApiPath}".toString())
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
