@@ -3743,12 +3743,26 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
         if (XposedLog.isVerboseLoggable()) {
             XposedLog.verbose("NotificationListeners onNotificationPosted: " + sbn);
         }
+        onNotificationPosted(statusBarNotificationFromRecord(sbn));
     }
 
     @Override
     public void onNotificationRemoved(NotificationRecord sbn) {
         if (XposedLog.isVerboseLoggable()) {
             XposedLog.verbose("NotificationListeners onNotificationRemoved: " + sbn);
+        }
+        onNotificationRemoved(statusBarNotificationFromRecord(sbn));
+    }
+
+    private StatusBarNotification statusBarNotificationFromRecord(NotificationRecord record) {
+        if (record == null) {
+            return null;
+        }
+        try {
+            return (StatusBarNotification) XposedHelpers.getObjectField(record, "sbn");
+        } catch (Throwable e) {
+            XposedLog.wtf("Fail retrieve sbn from NotificationRecord: " + Log.getStackTraceString(e));
+            return null;
         }
     }
 
