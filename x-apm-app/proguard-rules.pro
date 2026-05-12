@@ -200,3 +200,7 @@ public static java.lang.String TABLENAME;
 # Rhino.
 -keep class org.mozilla.** {*;}
 -dontwarn org.mozilla.**
+
+# Old AGP/ProGuard may see desugared hidden framework default-method helpers
+# as unresolved library references when building on clean CI.
+-dontwarn android.view.WindowManagerPolicy$PointerEventListener$$CC
