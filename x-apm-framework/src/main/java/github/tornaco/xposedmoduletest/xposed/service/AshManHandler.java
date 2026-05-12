@@ -73,8 +73,8 @@ interface AshManHandler {
      * @param flags         Optional behavior flags.
      */
     void setComponentEnabledSetting(ComponentName componentName,
-                                    @PackageManager.EnabledState int newState,
-                                    @PackageManager.EnabledFlags int flags);
+                                    int newState,
+                                    int flags);
 
     /**
      * Return the enabled setting for a package component (activity,
@@ -86,7 +86,6 @@ interface AshManHandler {
      * @param componentName The component to retrieve.
      * @return Returns the current enabled state for the component.
      */
-    @PackageManager.EnabledState
     int getComponentEnabledSetting(
             ComponentName componentName);
 

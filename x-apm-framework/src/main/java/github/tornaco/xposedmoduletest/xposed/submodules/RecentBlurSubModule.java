@@ -184,8 +184,8 @@ public class RecentBlurSubModule extends AndroidSubModule {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                     super.afterHookedMethod(param);
-                    ActivityManager.TaskSnapshot orig = (ActivityManager.TaskSnapshot) param.getResult();
-                    ActivityManager.TaskSnapshot taskSnapshot = onGetTaskSnapshot(orig, (Integer) param.args[0]);
+                    Object orig = param.getResult();
+                    Object taskSnapshot = onGetTaskSnapshot(orig, (Integer) param.args[0]);
                     if (taskSnapshot != null) {
                         param.setResult(taskSnapshot);
                     }
@@ -219,7 +219,7 @@ public class RecentBlurSubModule extends AndroidSubModule {
             if (name == null) return;
             String pkgName = name.getPackageName();
             if (getBridge().isBlurForPkg(pkgName)) {
-                ActivityManager.TaskSnapshot snapshot = (ActivityManager.TaskSnapshot) param.getResult();
+                Object snapshot = param.getResult();
                 if (snapshot == null) {
                     return;
                 }
@@ -233,7 +233,7 @@ public class RecentBlurSubModule extends AndroidSubModule {
                         return;
                     }
 
-                    Bitmap hwBitmap = Bitmap.createHardwareBitmap(snapshot.getSnapshot());
+                    Bitmap hwBitmap = Bitmap.createHardwareBitmap((android.graphics.GraphicBuffer) XposedHelpers.callMethod(snapshot, "getSnapshot"));
                     XposedLog.verbose("BLUR onSnapshotTask, hwBitmap: " + hwBitmap);
                     if (hwBitmap != null) {
                         BlurTask cachedTask = BlurTask.from(pkgName, blurBitmap(hwBitmap, screenSize));
@@ -256,7 +256,7 @@ public class RecentBlurSubModule extends AndroidSubModule {
         }
     }
 
-    private ActivityManager.TaskSnapshot onGetTaskSnapshot(ActivityManager.TaskSnapshot orig, int taskId) {
+    private Object onGetTaskSnapshot(Object orig, int taskId) {
         if (orig == null || sSnapshotFieldUnsupported) {
             return null;
         }
@@ -352,7 +352,7 @@ public class RecentBlurSubModule extends AndroidSubModule {
         return null;
     }
 
-    private boolean setSnapshotSafely(ActivityManager.TaskSnapshot snapshot, Bitmap bitmap) {
+    private boolean setSnapshotSafely(Object snapshot, Bitmap bitmap) {
         try {
             XposedHelpers.setObjectField(snapshot, "mSnapshot", bitmap.createGraphicBufferHandle());
             return true;
