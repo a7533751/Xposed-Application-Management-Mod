@@ -658,7 +658,7 @@ public final class XAppOpsManager {
             Manifest.permission.READ_SMS,
             null, // no permission required for writing sms
             Manifest.permission.RECEIVE_SMS,
-            Manifest.permission.RECEIVE_EMERGENCY_BROADCAST,
+            "android.permission.RECEIVE_EMERGENCY_BROADCAST",
             Manifest.permission.RECEIVE_MMS,
             Manifest.permission.RECEIVE_WAP_PUSH,
             Manifest.permission.SEND_SMS,
@@ -667,7 +667,7 @@ public final class XAppOpsManager {
 //            android.Manifest.permission.WRITE_SETTINGS,
             null,
             Manifest.permission.SYSTEM_ALERT_WINDOW,
-            Manifest.permission.ACCESS_NOTIFICATIONS,
+            "android.permission.ACCESS_NOTIFICATIONS",
             Manifest.permission.CAMERA,
             Manifest.permission.RECORD_AUDIO,
             null, // no permission for playing audio
@@ -699,7 +699,7 @@ public final class XAppOpsManager {
             Manifest.permission.PROCESS_OUTGOING_CALLS,
             Manifest.permission.USE_FINGERPRINT,
             Manifest.permission.BODY_SENSORS,
-            Manifest.permission.READ_CELL_BROADCASTS,
+            "android.permission.READ_CELL_BROADCASTS",
             null,
             Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE,

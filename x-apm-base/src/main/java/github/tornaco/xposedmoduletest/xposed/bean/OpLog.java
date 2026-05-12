@@ -33,7 +33,7 @@ public class OpLog implements Parcelable {
         when = in.readLong();
         packageName = in.readString();
         times = in.readLong();
-        payload = in.readStringArray();
+        payload = in.createStringArray();
     }
 
     public static final Creator<OpLog> CREATOR = new Creator<OpLog>() {
