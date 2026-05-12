@@ -14,6 +14,7 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -44,6 +45,8 @@ public class RecentBlurSubModule extends AndroidSubModule {
     private static final long REPORT_TOO_LONG_TO_BLUR_IF_TIME_LONGER_THAN = 100;
     private static final boolean RS_BLUR_ENABLED = false;
     private static final Executor BLUR_EXE = Executors.newCachedThreadPool();
+    private static volatile boolean sTaskIdUnsupported;
+    private static volatile boolean sSnapshotFieldUnsupported;
 
     @Override
     public String needBuildVar() {
@@ -199,9 +202,15 @@ public class RecentBlurSubModule extends AndroidSubModule {
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     private void blurAndCacheAsync(XC_MethodHook.MethodHookParam param) {
+        if (sTaskIdUnsupported || sSnapshotFieldUnsupported) {
+            return;
+        }
         Object taskObj = param.args[0];
         XposedLog.verbose("BLUR onSnapshotTask, taskObj: " + taskObj);
-        int taskId = (int) XposedHelpers.getObjectField(taskObj, "mTaskId");
+        Integer taskId = getTaskIdSafely(taskObj);
+        if (taskId == null) {
+            return;
+        }
         XposedLog.verbose("BLUR onSnapshotTask, taskId: " + taskId);
         long startTimeMills = System.currentTimeMillis();
         if (XAPMManager.get().isServiceAvailable()) {
@@ -230,7 +239,9 @@ public class RecentBlurSubModule extends AndroidSubModule {
                         BlurTask cachedTask = BlurTask.from(pkgName, blurBitmap(hwBitmap, screenSize));
                         BlurTaskCache.getInstance().put(pkgName, cachedTask);
                         XposedLog.verbose("BLUR onSnapshotTask, bitmap: " + cachedTask.bitmap);
-                        XposedHelpers.setObjectField(snapshot, "mSnapshot", cachedTask.bitmap.createGraphicBufferHandle());
+                        if (!setSnapshotSafely(snapshot, cachedTask.bitmap)) {
+                            return;
+                        }
                         XposedLog.verbose("BLUR onSnapshotTask, mSnapshot: " + snapshot);
 
                         long timeTaken = System.currentTimeMillis() - startTimeMills;
@@ -246,15 +257,20 @@ public class RecentBlurSubModule extends AndroidSubModule {
     }
 
     private ActivityManager.TaskSnapshot onGetTaskSnapshot(ActivityManager.TaskSnapshot orig, int taskId) {
+        if (orig == null || sSnapshotFieldUnsupported) {
+            return null;
+        }
         ComponentName name = XAPMManager.get().componentNameForTaskId(taskId);
         XposedLog.verbose("BLUR onGetTaskSnapshot, name: " + name);
+        if (name == null) {
+            return null;
+        }
         String pkgName = name.getPackageName();
         BlurTask cache = BlurTaskCache.getInstance().get(pkgName);
         if (cache == null || cache.bitmap == null) {
             return null;
         }
-        XposedHelpers.setObjectField(orig, "mSnapshot", cache.bitmap.createGraphicBufferHandle());
-        return orig;
+        return setSnapshotSafely(orig, cache.bitmap) ? orig : null;
     }
 
     @RequiresApi(api = Build.VERSION_CODES.O)
@@ -263,9 +279,88 @@ public class RecentBlurSubModule extends AndroidSubModule {
             try {
                 blurAndCacheAsync(param);
             } catch (Throwable e) {
-                XposedLog.wtf("Error occur @BLUR_EXE, while call blurAndCacheAsync: " + Log.getStackTraceString(e));
+                XposedLog.wtf("Error occur @BLUR_EXE, while call blurAndCacheAsync: " + e);
             }
         });
+    }
+
+    private Integer getTaskIdSafely(Object taskObj) {
+        if (taskObj == null) {
+            return null;
+        }
+        Object value = getFieldValue(taskObj, "mTaskId", "taskId", "mTaskIdForLaunch");
+        if (value == null) {
+            Object task = callNoArgMethod(taskObj, "getTask");
+            if (task == null) {
+                task = getFieldValue(taskObj, "mTask", "task");
+            }
+            if (task != null) {
+                value = getFieldValue(task, "mTaskId", "taskId", "mTaskIdForLaunch");
+            }
+        }
+        if (value instanceof Integer) {
+            return (Integer) value;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        sTaskIdUnsupported = true;
+        XposedLog.wtf("BLUR task id field unsupported, disable snapshot blur for " + taskObj.getClass());
+        return null;
+    }
+
+    private Object getFieldValue(Object obj, String... fieldNames) {
+        Class<?> clz = obj.getClass();
+        for (String fieldName : fieldNames) {
+            try {
+                Field field = findField(clz, fieldName);
+                if (field != null) {
+                    field.setAccessible(true);
+                    return field.get(obj);
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private Object callNoArgMethod(Object obj, String methodName) {
+        Class<?> current = obj.getClass();
+        while (current != null) {
+            try {
+                Method method = current.getDeclaredMethod(methodName);
+                method.setAccessible(true);
+                return method.invoke(obj);
+            } catch (NoSuchMethodException ignored) {
+                current = current.getSuperclass();
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private Field findField(Class<?> clz, String fieldName) {
+        Class<?> current = clz;
+        while (current != null) {
+            try {
+                return current.getDeclaredField(fieldName);
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        return null;
+    }
+
+    private boolean setSnapshotSafely(ActivityManager.TaskSnapshot snapshot, Bitmap bitmap) {
+        try {
+            XposedHelpers.setObjectField(snapshot, "mSnapshot", bitmap.createGraphicBufferHandle());
+            return true;
+        } catch (Throwable e) {
+            sSnapshotFieldUnsupported = true;
+            XposedLog.wtf("BLUR snapshot field unsupported, disable snapshot blur: " + e);
+            return false;
+        }
     }
 
     @RequiresApi(api = Build.VERSION_CODES.O)

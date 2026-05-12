@@ -56,8 +56,11 @@ public class InputManagerInjectInputSubModule extends AndroidSubModule {
                                 return;
                             }
 
-                            KeyEvent keyEvent = (KeyEvent) param.args[0];
-                            getBridge().onKeyEvent(keyEvent, EVENT_SOURCE);
+                            Object inputEvent = param.args[0];
+                            if (!(inputEvent instanceof KeyEvent)) {
+                                return;
+                            }
+                            getBridge().onKeyEvent((KeyEvent) inputEvent, EVENT_SOURCE);
                         }
                     });
             logOnBootStage("hookInjectInputEvent OK:" + unHooks);
@@ -88,10 +91,13 @@ public class InputManagerInjectInputSubModule extends AndroidSubModule {
                             }
                             try {
 
-                                KeyEvent keyEvent = (KeyEvent) param.args[1];
-                                getBridge().onKeyEvent(keyEvent, EVENT_SOURCE_NATIVE);
+                                Object inputEvent = param.args[1];
+                                if (!(inputEvent instanceof KeyEvent)) {
+                                    return;
+                                }
+                                getBridge().onKeyEvent((KeyEvent) inputEvent, EVENT_SOURCE_NATIVE);
                             } catch (Throwable err) {
-                                XposedLog.verbose("nativeInjectInputEvent: " + e);
+                                XposedLog.verbose("nativeInjectInputEvent: " + err);
                             }
                         }
                     });
