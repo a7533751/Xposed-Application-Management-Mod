@@ -8286,15 +8286,7 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
     public void exitKeyguardSecurely(final IBooleanCallback1 result) {
         XposedLog.verbose("exitKeyguardSecurely: " + mPhoneWindowManagerProxy);
         if (mPhoneWindowManagerProxy != null) {
-            wrapCallingIdetUnCaught(new ErrorCatchRunnable(() -> mPhoneWindowManagerProxy.exitKeyguardSecurely(success -> {
-                if (result != null) {
-                    try {
-                        result.onResult(success);
-                    } catch (RemoteException e) {
-                        XposedLog.wtf("exitKeyguardSecurely,  result.onResult: " + e);
-                    }
-                }
-            }), "exitKeyguardSecurely"));
+            wrapCallingIdetUnCaught(new ErrorCatchRunnable(() -> mPhoneWindowManagerProxy.exitKeyguardSecurely(result), "exitKeyguardSecurely"));
         }
     }
 

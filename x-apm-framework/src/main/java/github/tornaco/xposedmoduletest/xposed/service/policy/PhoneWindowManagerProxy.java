@@ -2,10 +2,14 @@ package github.tornaco.xposedmoduletest.xposed.service.policy;
 
 import android.content.Context;
 import android.os.Handler;
+import android.os.RemoteException;
 import android.util.Log;
 import android.view.WindowManagerPolicy;
 
+import java.lang.reflect.Proxy;
+
 import de.robv.android.xposed.XposedHelpers;
+import github.tornaco.xposedmoduletest.IBooleanCallback1;
 import github.tornaco.xposedmoduletest.ISettingsChangeListener;
 import github.tornaco.xposedmoduletest.xposed.app.XAPMManager;
 import github.tornaco.xposedmoduletest.xposed.repo.SettingsProvider;
@@ -46,8 +50,48 @@ public class PhoneWindowManagerProxy extends InvokeTargetProxy<Object> {
         invokeMethod("enableKeyguard", enabled);
     }
 
-    public void exitKeyguardSecurely(WindowManagerPolicy.OnKeyguardExitResult result) {
-        invokeMethod("exitKeyguardSecurely", result);
+    public void exitKeyguardSecurely(IBooleanCallback1 result) {
+        try {
+            Class<?> callbackClass = Class.forName("android.view.WindowManagerPolicy$OnKeyguardExitResult",
+                    false, ClassLoader.getSystemClassLoader());
+            ClassLoader callbackClassLoader = callbackClass.getClassLoader() == null
+                    ? ClassLoader.getSystemClassLoader()
+                    : callbackClass.getClassLoader();
+            Object callback = Proxy.newProxyInstance(callbackClassLoader,
+                    new Class[]{callbackClass}, (proxy, method, args) -> {
+                        String methodName = method.getName();
+                        if ("onKeyguardExitResult".equals(methodName)) {
+                            boolean success = args != null
+                                    && args.length > 0
+                                    && args[0] instanceof Boolean
+                                    && (Boolean) args[0];
+                            notifyKeyguardExitResult(result, success);
+                            return null;
+                        }
+                        if ("toString".equals(methodName)) return "XAPMKeyguardExitCallback";
+                        if ("hashCode".equals(methodName)) return System.identityHashCode(proxy);
+                        if ("equals".equals(methodName)) return args != null && args.length > 0 && proxy == args[0];
+                        return null;
+                    });
+            invokeMethod("exitKeyguardSecurely", callback);
+        } catch (ClassNotFoundException e) {
+            notifyKeyguardExitResult(result, false);
+        } catch (Throwable e) {
+            XposedLog.wtf("PhoneWindowManagerProxy exitKeyguardSecurely fail: "
+                    + Log.getStackTraceString(e));
+            notifyKeyguardExitResult(result, false);
+        }
+    }
+
+    private void notifyKeyguardExitResult(IBooleanCallback1 result, boolean success) {
+        if (result == null) {
+            return;
+        }
+        try {
+            result.onResult(success);
+        } catch (RemoteException e) {
+            XposedLog.wtf("PhoneWindowManagerProxy notifyKeyguardExitResult fail: " + e);
+        }
     }
 
     public void dismissKeyguardLw() {
