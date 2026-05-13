@@ -12,10 +12,6 @@ import android.service.notification.StatusBarNotification;
 import android.util.Pair;
 import android.view.Display;
 import android.view.KeyEvent;
-import android.view.WindowManagerPolicy;
-
-import com.android.server.notification.NotificationRecord;
-
 import github.tornaco.xposedmoduletest.xposed.service.am.AMSProxy;
 import github.tornaco.xposedmoduletest.xposed.service.am.ActiveServicesProxy;
 import github.tornaco.xposedmoduletest.xposed.service.am.UsageStatsServiceProxy;
@@ -141,7 +137,7 @@ public interface IModuleBridge {
 
     void attachPhoneWindowManager(PhoneWindowManagerProxy proxy);
 
-    void initPhoneWindowManager(Context context, WindowManagerPolicy.WindowManagerFuncs funcs);
+    void initPhoneWindowManager(Context context, Object funcs);
 
     void onPhoneWindowManagerSetInitialDisplaySize(Display display);
 
@@ -209,9 +205,9 @@ public interface IModuleBridge {
 
     void onNotificationRemoved(StatusBarNotification sbn);
 
-    void onNotificationPosted(NotificationRecord sbn);
+    void onNotificationPosted(Object record);
 
-    void onNotificationRemoved(NotificationRecord sbn);
+    void onNotificationRemoved(Object record);
 
     void onInputEvent(Object arg);
 

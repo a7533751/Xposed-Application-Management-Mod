@@ -3,8 +3,6 @@ package github.tornaco.xposedmoduletest.xposed.submodules;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
 
-import com.android.server.notification.NotificationRecord;
-
 import java.util.Arrays;
 import java.util.Set;
 
@@ -72,13 +70,7 @@ class NotificationManagerServiceSubModule extends AndroidSubModule {
                     if (BuildConfig.DEBUG && XposedLog.isVerboseLoggable()) {
                         XposedLog.verbose("NotificationListeners, notifyPosted: " + Arrays.toString(param.args));
                     }
-                    Object object = param.args[0];
-                    if (object instanceof NotificationRecord) {
-                        getBridge().onNotificationPosted((NotificationRecord) object);
-                    } else if (object instanceof StatusBarNotification) {
-                        StatusBarNotification sbn = (StatusBarNotification) param.args[0];
-                        getBridge().onNotificationPosted(sbn);
-                    }
+                    dispatchNotificationPosted(param.args[0]);
                 }
             });
             logOnBootStage("hookNotificationListeners OK:" + unHooks);
@@ -102,13 +94,7 @@ class NotificationManagerServiceSubModule extends AndroidSubModule {
                     if (BuildConfig.DEBUG && XposedLog.isVerboseLoggable()) {
                         XposedLog.verbose("NotificationListeners, notifyRemoved: " + Arrays.toString(param.args));
                     }
-                    Object object = param.args[0];
-                    if (object instanceof NotificationRecord) {
-                        getBridge().onNotificationRemoved((NotificationRecord) object);
-                    } else if (object instanceof StatusBarNotification) {
-                        StatusBarNotification sbn = (StatusBarNotification) param.args[0];
-                        getBridge().onNotificationRemoved(sbn);
-                    }
+                    dispatchNotificationRemoved(param.args[0]);
                 }
             });
             logOnBootStage("hookNotificationListenersRemove OK:" + unHooks);
@@ -119,4 +105,37 @@ class NotificationManagerServiceSubModule extends AndroidSubModule {
             setErrorMessage(Log.getStackTraceString(e));
         }
     }
+    private void dispatchNotificationPosted(Object object) {
+        StatusBarNotification sbn = statusBarNotificationFrom(object);
+        if (sbn != null) {
+            getBridge().onNotificationPosted(sbn);
+        } else if (object != null) {
+            getBridge().onNotificationPosted(object);
+        }
+    }
+
+    private void dispatchNotificationRemoved(Object object) {
+        StatusBarNotification sbn = statusBarNotificationFrom(object);
+        if (sbn != null) {
+            getBridge().onNotificationRemoved(sbn);
+        } else if (object != null) {
+            getBridge().onNotificationRemoved(object);
+        }
+    }
+
+    private StatusBarNotification statusBarNotificationFrom(Object object) {
+        if (object instanceof StatusBarNotification) {
+            return (StatusBarNotification) object;
+        }
+        if (object == null || !"com.android.server.notification.NotificationRecord".equals(object.getClass().getName())) {
+            return null;
+        }
+        try {
+            return (StatusBarNotification) XposedHelpers.getObjectField(object, "sbn");
+        } catch (Throwable e) {
+            XposedLog.wtf("NotificationListeners fail retrieve sbn: " + Log.getStackTraceString(e));
+            return null;
+        }
+    }
+
 }

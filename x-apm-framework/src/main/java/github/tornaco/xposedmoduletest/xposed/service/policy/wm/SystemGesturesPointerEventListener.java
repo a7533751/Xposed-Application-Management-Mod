@@ -24,14 +24,13 @@ import android.util.Slog;
 import android.view.GestureDetector;
 import android.view.InputDevice;
 import android.view.MotionEvent;
-import android.view.WindowManagerPolicy.PointerEventListener;
 import android.widget.OverScroller;
 
 /*
  * Listens for system-wide input gestures, firing callbacks when detected.
  * @hide
  */
-public class SystemGesturesPointerEventListener implements PointerEventListener {
+public class SystemGesturesPointerEventListener {
     private static final String TAG = "SystemGestures";
     private static final boolean DEBUG = false;
     private static final long SWIPE_TIMEOUT_MS = 500;
@@ -89,7 +88,6 @@ public class SystemGesturesPointerEventListener implements PointerEventListener 
         mOverscroller = new OverScroller(mContext);
     }
 
-    @Override
     public void onPointerEvent(MotionEvent event) {
         if (mGestureDetector != null && event.isTouchEvent()) {
             mGestureDetector.onTouchEvent(event);

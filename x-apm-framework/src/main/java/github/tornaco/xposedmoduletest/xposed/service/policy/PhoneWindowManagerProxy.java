@@ -4,8 +4,8 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.RemoteException;
 import android.util.Log;
-import android.view.WindowManagerPolicy;
 
+import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
 import de.robv.android.xposed.XposedHelpers;
@@ -37,10 +37,12 @@ public class PhoneWindowManagerProxy extends InvokeTargetProxy<Object> {
 
     @Getter
     @Setter
-    private WindowManagerPolicy.WindowManagerFuncs windowManagerFuncs;
+    private Object windowManagerFuncs;
 
     private OPGesturesListener mOPGestures;
     private SystemGesturesPointerEventListener mSystemGesturesListener;
+    private Object mOPGesturesPointerEventListener;
+    private Object mSystemGesturesPointerEventListener;
 
     public PhoneWindowManagerProxy(Object host) {
         super(host);
@@ -106,8 +108,7 @@ public class PhoneWindowManagerProxy extends InvokeTargetProxy<Object> {
         synchronized (this) {
             if (getWindowManagerFuncs() == null) {
                 try {
-                    setWindowManagerFuncs((WindowManagerPolicy.WindowManagerFuncs)
-                            XposedHelpers.getObjectField(getHost(), "mWindowManagerFuncs"));
+                    setWindowManagerFuncs(XposedHelpers.getObjectField(getHost(), "mWindowManagerFuncs"));
                     XposedLog.verbose("PhoneWindowManagerProxy retrieveWindowManagerFuncs: " + getWindowManagerFuncs());
                 } catch (Throwable e) {
                     XposedLog.wtf("PhoneWindowManagerProxy Fail retrieveWindowManagerFuncs: "
@@ -123,6 +124,7 @@ public class PhoneWindowManagerProxy extends InvokeTargetProxy<Object> {
                 XposedLog.verbose("PhoneWindowManagerProxy onSwipeThreeFinger");
                 takeScreenshot(0);
             });
+            mOPGesturesPointerEventListener = newPointerEventListener(mOPGestures);
         }
         registerSettingsListener();
     }
@@ -131,8 +133,40 @@ public class PhoneWindowManagerProxy extends InvokeTargetProxy<Object> {
         if (context != null) {
             mSystemGesturesListener = new SystemGesturesPointerEventListener(context,
                     new SystemGesturesPointerEventListenerCallbackImpl(context));
+            mSystemGesturesPointerEventListener = newPointerEventListener(mSystemGesturesListener);
         }
         registerSettingsListener();
+    }
+
+    private Object newPointerEventListener(Object delegate) {
+        if (delegate == null) {
+            return null;
+        }
+        try {
+            Class<?> listenerClass = Class.forName("android.view.WindowManagerPolicy$PointerEventListener",
+                    false, ClassLoader.getSystemClassLoader());
+            ClassLoader listenerClassLoader = listenerClass.getClassLoader() == null
+                    ? ClassLoader.getSystemClassLoader()
+                    : listenerClass.getClassLoader();
+            Method onPointerEvent = delegate.getClass().getMethod("onPointerEvent", android.view.MotionEvent.class);
+            return Proxy.newProxyInstance(listenerClassLoader,
+                    new Class[]{listenerClass}, (proxy, method, args) -> {
+                        String methodName = method.getName();
+                        if ("onPointerEvent".equals(methodName)) {
+                            if (args != null && args.length > 0) {
+                                onPointerEvent.invoke(delegate, args[0]);
+                            }
+                            return null;
+                        }
+                        if ("toString".equals(methodName)) return delegate.toString();
+                        if ("hashCode".equals(methodName)) return System.identityHashCode(proxy);
+                        if ("equals".equals(methodName)) return args != null && args.length > 0 && proxy == args[0];
+                        return null;
+                    });
+        } catch (Throwable e) {
+            XposedLog.wtf("PhoneWindowManagerProxy fail create pointer listener: " + Log.getStackTraceString(e));
+            return null;
+        }
     }
 
     private void registerSettingsListener() {
@@ -155,6 +189,21 @@ public class PhoneWindowManagerProxy extends InvokeTargetProxy<Object> {
         });
     }
 
+    private void setPointerEventListenerRegistered(Object listener, boolean registered) {
+        if (listener == null || getWindowManagerFuncs() == null) {
+            return;
+        }
+        try {
+            XposedHelpers.callMethod(getWindowManagerFuncs(),
+                    registered ? "registerPointerEventListener" : "unregisterPointerEventListener",
+                    listener);
+        } catch (Throwable e) {
+            XposedLog.wtf("PhoneWindowManagerProxy fail "
+                    + (registered ? "register" : "unregister")
+                    + " pointer listener: " + Log.getStackTraceString(e));
+        }
+    }
+
     public void enablePGesture(boolean enable) {
         if (getContext() == null) {
             XposedLog.wtf("PhoneWindowManagerProxy enablePGesture called while getContext() is null");
@@ -170,11 +219,11 @@ public class PhoneWindowManagerProxy extends InvokeTargetProxy<Object> {
             if (enable) {
                 if (haveEnablePGesture) return;
                 haveEnablePGesture = true;
-                getWindowManagerFuncs().registerPointerEventListener(mSystemGesturesListener);
+                setPointerEventListenerRegistered(mSystemGesturesPointerEventListener, true);
             } else {
                 if (!haveEnablePGesture) return;
                 haveEnablePGesture = false;
-                getWindowManagerFuncs().unregisterPointerEventListener(mSystemGesturesListener);
+                setPointerEventListenerRegistered(mSystemGesturesPointerEventListener, false);
             }
             XposedLog.verbose("PhoneWindowManagerProxy enablePGesture ok: " + enable);
         } else {
@@ -197,11 +246,11 @@ public class PhoneWindowManagerProxy extends InvokeTargetProxy<Object> {
             if (enable) {
                 if (haveEnableThreeFingerGesture) return;
                 haveEnableThreeFingerGesture = true;
-                getWindowManagerFuncs().registerPointerEventListener(mOPGestures);
+                setPointerEventListenerRegistered(mOPGesturesPointerEventListener, true);
             } else {
                 if (!haveEnableThreeFingerGesture) return;
                 haveEnableThreeFingerGesture = false;
-                getWindowManagerFuncs().unregisterPointerEventListener(mOPGestures);
+                setPointerEventListenerRegistered(mOPGesturesPointerEventListener, false);
             }
             XposedLog.verbose("PhoneWindowManagerProxy enableSwipeThreeFingerGesture ok: " + enable);
         } else {

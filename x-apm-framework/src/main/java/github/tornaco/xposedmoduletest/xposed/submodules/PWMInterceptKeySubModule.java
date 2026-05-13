@@ -4,7 +4,6 @@ import android.content.Context;
 import android.util.Log;
 import android.view.Display;
 import android.view.KeyEvent;
-import android.view.WindowManagerPolicy;
 
 import java.util.Set;
 
@@ -29,7 +28,7 @@ class PWMInterceptKeySubModule extends AndroidSubModule {
         return XAppBuildVar.APP_RFK;
     }
 
-    private static final int ACTION_PASS_TO_USER = WindowManagerPolicy.ACTION_PASS_TO_USER;
+    private static final int ACTION_PASS_TO_USER = 0x00000001;
 
     @Override
     public void handleLoadingPackage(String pkg, XC_LoadPackage.LoadPackageParam lpparam) {
@@ -81,7 +80,7 @@ class PWMInterceptKeySubModule extends AndroidSubModule {
                     super.afterHookedMethod(param);
                     logOnBootStage("hookPhoneWindowManagerInit init...");
                     Context context = (Context) param.args[0];
-                    WindowManagerPolicy.WindowManagerFuncs windowManagerFuncs = (WindowManagerPolicy.WindowManagerFuncs) param.args[2];
+                    Object windowManagerFuncs = param.args[2];
                     getBridge().initPhoneWindowManager(context, windowManagerFuncs);
                 }
             });

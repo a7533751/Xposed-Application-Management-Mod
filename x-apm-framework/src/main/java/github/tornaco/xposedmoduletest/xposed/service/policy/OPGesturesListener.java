@@ -21,9 +21,8 @@ package github.tornaco.xposedmoduletest.xposed.service.policy;
 import android.content.Context;
 import android.util.Slog;
 import android.view.MotionEvent;
-import android.view.WindowManagerPolicy.PointerEventListener;
 
-public class OPGesturesListener implements PointerEventListener {
+public class OPGesturesListener {
     private static final String TAG = "OPGestures";
     private static final boolean DEBUG = false;
     private static final int NUM_POINTER_SCREENSHOT = 3;
@@ -56,7 +55,6 @@ public class OPGesturesListener implements PointerEventListener {
         return arg;
     }
 
-    @Override
     public void onPointerEvent(MotionEvent event) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:

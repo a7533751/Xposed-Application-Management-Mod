@@ -69,13 +69,11 @@ import android.view.Display;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.view.WindowManagerPolicy;
 import android.webkit.IWebViewUpdateService;
 import android.webkit.WebViewProviderInfo;
 import android.widget.Toast;
 
 import com.android.internal.os.Zygote;
-import com.android.server.notification.NotificationRecord;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -2067,7 +2065,7 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
     }
 
     @Override
-    public void initPhoneWindowManager(Context context, WindowManagerPolicy.WindowManagerFuncs funcs) {
+    public void initPhoneWindowManager(Context context, Object funcs) {
         XposedLog.boot("initPhoneWindowManager: " + context + "-" + funcs);
         if (funcs != null) {
             mPhoneWindowManagerProxy.setWindowManagerFuncs(funcs);
@@ -3739,22 +3737,22 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
     }
 
     @Override
-    public void onNotificationPosted(NotificationRecord sbn) {
+    public void onNotificationPosted(Object record) {
         if (XposedLog.isVerboseLoggable()) {
-            XposedLog.verbose("NotificationListeners onNotificationPosted: " + sbn);
+            XposedLog.verbose("NotificationListeners onNotificationPosted: " + record);
         }
-        onNotificationPosted(statusBarNotificationFromRecord(sbn));
+        onNotificationPosted(statusBarNotificationFromRecord(record));
     }
 
     @Override
-    public void onNotificationRemoved(NotificationRecord sbn) {
+    public void onNotificationRemoved(Object record) {
         if (XposedLog.isVerboseLoggable()) {
-            XposedLog.verbose("NotificationListeners onNotificationRemoved: " + sbn);
+            XposedLog.verbose("NotificationListeners onNotificationRemoved: " + record);
         }
-        onNotificationRemoved(statusBarNotificationFromRecord(sbn));
+        onNotificationRemoved(statusBarNotificationFromRecord(record));
     }
 
-    private StatusBarNotification statusBarNotificationFromRecord(NotificationRecord record) {
+    private StatusBarNotification statusBarNotificationFromRecord(Object record) {
         if (record == null) {
             return null;
         }
