@@ -143,8 +143,10 @@ public class PhoneWindowManagerProxy extends InvokeTargetProxy<Object> {
             return null;
         }
         try {
-            Class<?> listenerClass = Class.forName("android.view.WindowManagerPolicy$PointerEventListener",
-                    false, ClassLoader.getSystemClassLoader());
+            Class<?> listenerClass = findPointerEventListenerClass();
+            if (listenerClass == null) {
+                return null;
+            }
             ClassLoader listenerClassLoader = listenerClass.getClassLoader() == null
                     ? ClassLoader.getSystemClassLoader()
                     : listenerClass.getClassLoader();
@@ -167,6 +169,50 @@ public class PhoneWindowManagerProxy extends InvokeTargetProxy<Object> {
             XposedLog.wtf("PhoneWindowManagerProxy fail create pointer listener: " + Log.getStackTraceString(e));
             return null;
         }
+    }
+
+    private Class<?> findPointerEventListenerClass() {
+        Class<?> listenerClass = findPointerEventListenerClassFromWindowManagerFuncs();
+        if (listenerClass != null) {
+            return listenerClass;
+        }
+        return findPointerEventListenerClassByName();
+    }
+
+    private Class<?> findPointerEventListenerClassFromWindowManagerFuncs() {
+        Object windowManagerFuncs = getWindowManagerFuncs();
+        if (windowManagerFuncs == null) {
+            return null;
+        }
+        for (Method method : windowManagerFuncs.getClass().getMethods()) {
+            if (!"registerPointerEventListener".equals(method.getName())
+                    || method.getParameterTypes().length != 1) {
+                continue;
+            }
+            return method.getParameterTypes()[0];
+        }
+        for (Method method : windowManagerFuncs.getClass().getDeclaredMethods()) {
+            if (!"registerPointerEventListener".equals(method.getName())
+                    || method.getParameterTypes().length != 1) {
+                continue;
+            }
+            return method.getParameterTypes()[0];
+        }
+        return null;
+    }
+
+    private Class<?> findPointerEventListenerClassByName() {
+        String[] classNames = {
+                "android.view.WindowManagerPolicyConstants$PointerEventListener",
+                "android.view.WindowManagerPolicy$PointerEventListener"
+        };
+        for (String className : classNames) {
+            try {
+                return Class.forName(className, false, ClassLoader.getSystemClassLoader());
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
     }
 
     private void registerSettingsListener() {
@@ -210,11 +256,12 @@ public class PhoneWindowManagerProxy extends InvokeTargetProxy<Object> {
             return;
         }
 
+        retrieveWindowManagerFuncs();
         if (mSystemGesturesListener == null) {
             initPGesture(context);
+        } else if (mSystemGesturesPointerEventListener == null) {
+            mSystemGesturesPointerEventListener = newPointerEventListener(mSystemGesturesListener);
         }
-
-        retrieveWindowManagerFuncs();
         if (getWindowManagerFuncs() != null) {
             if (enable) {
                 if (haveEnablePGesture) return;
@@ -237,11 +284,12 @@ public class PhoneWindowManagerProxy extends InvokeTargetProxy<Object> {
             return;
         }
 
+        retrieveWindowManagerFuncs();
         if (mOPGestures == null) {
             initThreeFingerGesture(context);
+        } else if (mOPGesturesPointerEventListener == null) {
+            mOPGesturesPointerEventListener = newPointerEventListener(mOPGestures);
         }
-
-        retrieveWindowManagerFuncs();
         if (getWindowManagerFuncs() != null) {
             if (enable) {
                 if (haveEnableThreeFingerGesture) return;
