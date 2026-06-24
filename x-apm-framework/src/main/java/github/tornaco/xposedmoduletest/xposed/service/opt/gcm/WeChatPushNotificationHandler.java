@@ -8,6 +8,8 @@ import android.support.annotation.RequiresApi;
 import android.util.Log;
 
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import github.tornaco.xposedmoduletest.model.PushMessage;
@@ -29,6 +31,16 @@ public class WeChatPushNotificationHandler extends BasePushNotificationHandler {
     private static final String WECHAT_INTENT_KEY_ALERT = "alert";
     private static final String WECHAT_INTENT_KEY_BADGE = "badge";
     private static final String WECHAT_INTENT_KEY_FROM = "from";
+    private static final String WECHAT_INTENT_KEY_MSG_TYPE = "msgType";
+    private static final String WECHAT_INTENT_KEY_SEQ = "seq";
+
+    private static final String GCM_INTENT_KEY_MESSAGE_ID = "google.message_id";
+
+    private static final long STRONG_PUSH_DEDUP_TTL_MILLIS = 6 * 60 * 60 * 1000L;
+    private static final int MAX_SEEN_STRONG_PUSH_COUNT = 256;
+
+    private final RecentPushCache recentStrongPushCache =
+            new RecentPushCache(STRONG_PUSH_DEDUP_TTL_MILLIS, MAX_SEEN_STRONG_PUSH_COUNT);
 
     public WeChatPushNotificationHandler(Context context, NotificationHandlerSettingsRetriever retriever) {
         super(context, retriever);
@@ -63,6 +75,11 @@ public class WeChatPushNotificationHandler extends BasePushNotificationHandler {
             return false;
         }
 
+        if (isDuplicateStrongPush(intent)) {
+            XposedLog.verbose("WeChatPushNotificationHandler drop duplicate strong push");
+            return true;
+        }
+
         if (isTargetPackageRunningOnTop()) {
             // Reset all when package is in front.
             XposedLog.verbose("WeChatPushNotificationHandler target is running on top");
@@ -70,11 +87,11 @@ public class WeChatPushNotificationHandler extends BasePushNotificationHandler {
             return true;
         }
 
-        if (isNotificationPostByAppEnabled() && PushMessageNotificationService.start(getContext(),
-                resolveWeChatPushIntent(intent))) {
+        PushMessage pushMessage = resolveWeChatPushIntent(intent);
+        if (isNotificationPostByAppEnabled() && PushMessageNotificationService.start(getContext(), pushMessage)) {
             XposedLog.verbose("WeChatPushNotificationHandler posted by app!");
         } else {
-            postNotification(resolveWeChatPushIntent(intent));
+            postNotification(pushMessage);
         }
 
 
@@ -120,6 +137,48 @@ public class WeChatPushNotificationHandler extends BasePushNotificationHandler {
             XposedLog.wtf("Fail resolveWeChatPushIntent, use default: " + Log.getStackTraceString(e));
             return createDefaultPushMessage();
         }
+    }
+
+    private boolean isDuplicateStrongPush(Intent intent) {
+        if (intent == null || intent.hasExtra(KEY_MOCK_MESSAGE)) {
+            return false;
+        }
+
+        String fingerprint = createStrongPushFingerprint(intent);
+        return fingerprint != null && recentStrongPushCache.isDuplicate(fingerprint);
+    }
+
+    private String createStrongPushFingerprint(Intent intent) {
+        String seq = getExtraValue(intent, WECHAT_INTENT_KEY_SEQ);
+        if (seq != null) {
+            return "wechat-seq:"
+                    + valueOrEmpty(getExtraValue(intent, WECHAT_INTENT_KEY_FROM))
+                    + ":" + seq
+                    + ":" + valueOrEmpty(getExtraValue(intent, WECHAT_INTENT_KEY_MSG_TYPE));
+        }
+
+        String messageId = getExtraValue(intent, GCM_INTENT_KEY_MESSAGE_ID);
+        if (messageId != null) {
+            return "gcm:" + messageId;
+        }
+
+        return null;
+    }
+
+    private static String getExtraValue(Intent intent, String key) {
+        if (intent == null || intent.getExtras() == null || !intent.getExtras().containsKey(key)) {
+            return null;
+        }
+        Object value = intent.getExtras().get(key);
+        if (value == null) {
+            return null;
+        }
+        String valueString = String.valueOf(value);
+        return valueString.length() == 0 ? null : valueString;
+    }
+
+    private static String valueOrEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private PushMessage createAlertMessage(String from, String alert) {
@@ -174,6 +233,51 @@ public class WeChatPushNotificationHandler extends BasePushNotificationHandler {
             int idNew = UniqueIdFactory.getNextId();
             idMap.put(messageIdString, idNew);
             return idNew;
+        }
+    }
+
+    private static class RecentPushCache {
+        private final long ttlMillis;
+        private final int maxSize;
+        private final LinkedHashMap<String, Long> fingerprints = new LinkedHashMap<>();
+
+        RecentPushCache(long ttlMillis, int maxSize) {
+            this.ttlMillis = ttlMillis;
+            this.maxSize = maxSize;
+        }
+
+        synchronized boolean isDuplicate(String fingerprint) {
+            long now = System.currentTimeMillis();
+            trimExpired(now);
+
+            Long lastSeen = fingerprints.get(fingerprint);
+            if (lastSeen != null) {
+                fingerprints.put(fingerprint, now);
+                return true;
+            }
+
+            fingerprints.put(fingerprint, now);
+            trimOverflow();
+            return false;
+        }
+
+        private void trimExpired(long now) {
+            Iterator<Map.Entry<String, Long>> iterator = fingerprints.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, Long> entry = iterator.next();
+                long lastSeen = entry.getValue();
+                if (now < lastSeen || now - lastSeen > ttlMillis) {
+                    iterator.remove();
+                }
+            }
+        }
+
+        private void trimOverflow() {
+            Iterator<Map.Entry<String, Long>> iterator = fingerprints.entrySet().iterator();
+            while (fingerprints.size() > maxSize && iterator.hasNext()) {
+                iterator.next();
+                iterator.remove();
+            }
         }
     }
 }
