@@ -554,4 +554,7 @@ interface IAshmanService {
 
     boolean isRedemptionModeEnabled();
     void setRedemptionModeEnabled(boolean enabled);
+
+    void setDozeElapsedRealtimeEnabled(boolean enabled);
+    boolean isDozeElapsedRealtimeEnabled();
 }

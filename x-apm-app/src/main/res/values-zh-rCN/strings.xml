@@ -369,6 +369,8 @@
     <string name="title_privacy_policy">隐私权政策</string>
     <string name="title_force_doze">强制进入</string>
     <string name="summary_doze_force">摆脱一些严格要求。</string>
+    <string name="title_doze_elapsed_realtime">按实际经过时间计时</string>
+    <string name="summary_doze_elapsed_realtime">包含设备休眠时间，到点唤醒并尝试进入打盹；关闭时保留默认 Handler 计时。</string>
     <string name="theme_name_black">A屏黑</string>
     <string name="title_doze_fail_generic_failure">状态改变失败</string>
     <string name="perm_apps">按应用</string>

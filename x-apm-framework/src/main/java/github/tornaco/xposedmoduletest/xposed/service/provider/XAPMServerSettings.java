@@ -81,6 +81,7 @@ public class XAPMServerSettings {
     // DOZE
     public static final BaseSetting<Boolean> APM_DOZE_ENABLE_B = new BooleanSettingImpl("APM_DOZE_ENABLE_B", false);
     public static final BaseSetting<Boolean> APM_FORCE_DOZE_ENABLE_B = new BooleanSettingImpl("APM_FORCE_DOZE_ENABLE_B", false);
+    public static final BaseSetting<Boolean> APM_DOZE_ELAPSED_REALTIME_ENABLE_B = new BooleanSettingImpl("APM_DOZE_ELAPSED_REALTIME_ENABLE_B", false);
     public static final BaseSetting<Boolean> APM_DISABLE_MOTION_ENABLE_B = new BooleanSettingImpl("APM_DISABLE_MOTION_ENABLE_B", false);
 
     // 常驻内存

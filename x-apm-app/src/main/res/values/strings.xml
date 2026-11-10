@@ -369,6 +369,8 @@
     <string name="title_privacy_policy">Privacy Policy</string>
     <string name="title_force_doze">Forced entry</string>
     <string name="summary_doze_force">Ignore some strict requirements.</string>
+    <string name="title_doze_elapsed_realtime">Use elapsed real time</string>
+    <string name="summary_doze_elapsed_realtime">Include time spent asleep and wake to attempt Doze when the delay expires. When off, use the default Handler timer.</string>
     <string name="theme_name_black">AMOLED black</string>
     <string name="title_doze_fail_generic_failure">State change failed</string>
     <string name="perm_apps">By App</string>

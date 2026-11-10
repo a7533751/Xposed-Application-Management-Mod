@@ -28,4 +28,6 @@ interface DozeHandler {
     void updateDozeEndState();
 
     void onScreenOn();
+
+    void setDozeElapsedRealtimeEnabled(boolean enabled);
 }

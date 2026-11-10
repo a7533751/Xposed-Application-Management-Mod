@@ -1437,6 +1437,25 @@ public class XAPMManager {
         }
     }
 
+    public void setDozeElapsedRealtimeEnabled(boolean enabled) {
+        ensureService();
+        try {
+            mService.setDozeElapsedRealtimeEnabled(enabled);
+        } catch (Exception e) {
+            handleException(e);
+        }
+    }
+
+    public boolean isDozeElapsedRealtimeEnabled() {
+        ensureService();
+        try {
+            return mService.isDozeElapsedRealtimeEnabled();
+        } catch (Exception e) {
+            handleException(e);
+            return false;
+        }
+    }
+
     public AppSettings retrieveAppSettingsForPackage(String pkg) {
         ensureService();
         try {

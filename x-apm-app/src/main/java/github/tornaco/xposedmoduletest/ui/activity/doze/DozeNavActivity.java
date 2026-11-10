@@ -17,6 +17,7 @@ import github.tornaco.xposedmoduletest.ui.tiles.doze.DisableMotionTile;
 import github.tornaco.xposedmoduletest.ui.tiles.doze.DozeDelayTile;
 import github.tornaco.xposedmoduletest.ui.tiles.doze.DozeEnterTile;
 import github.tornaco.xposedmoduletest.ui.tiles.doze.DozeWhitelistTile;
+import github.tornaco.xposedmoduletest.ui.tiles.doze.ElapsedRealtimeDozeTile;
 import github.tornaco.xposedmoduletest.ui.tiles.doze.ForceDozeTile;
 import github.tornaco.xposedmoduletest.ui.widget.SwitchBar;
 import github.tornaco.xposedmoduletest.xposed.app.XAPMManager;
@@ -123,6 +124,7 @@ public class DozeNavActivity extends CommonPackageInfoListActivity
             config.titleRes = R.string.title_config;
             config.addTile(new DozeDelayTile(getActivity()));
             config.addTile(new ForceDozeTile(getActivity()));
+            config.addTile(new ElapsedRealtimeDozeTile(getActivity()));
             config.addTile(new DisableMotionTile(getActivity()));
             config.addTile(new DozeWhitelistTile(getActivity()));
 

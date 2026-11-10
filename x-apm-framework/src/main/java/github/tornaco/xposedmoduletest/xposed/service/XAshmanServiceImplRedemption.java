@@ -1433,6 +1433,16 @@ public class XAshmanServiceImplRedemption extends XAshmanServiceAbs {
     }
 
     @Override
+    public void setDozeElapsedRealtimeEnabled(boolean enabled) {
+
+    }
+
+    @Override
+    public boolean isDozeElapsedRealtimeEnabled() {
+        return false;
+    }
+
+    @Override
     public long getLastDozeEnterTimeMills() {
         return 0;
     }

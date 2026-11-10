@@ -152,6 +152,7 @@ import github.tornaco.xposedmoduletest.xposed.service.bandwidth.BandwidthCommand
 import github.tornaco.xposedmoduletest.xposed.service.doze.BatterState;
 import github.tornaco.xposedmoduletest.xposed.service.doze.DeviceIdleControllerProxy;
 import github.tornaco.xposedmoduletest.xposed.service.doze.DozeStateRetriever;
+import github.tornaco.xposedmoduletest.xposed.service.doze.ElapsedRealtimeDozeAlarm;
 import github.tornaco.xposedmoduletest.xposed.service.doze.PowerWhitelistBackend;
 import github.tornaco.xposedmoduletest.xposed.service.dpm.DevicePolicyManagerServiceProxy;
 import github.tornaco.xposedmoduletest.xposed.service.hardware.CameraManager;
@@ -280,6 +281,7 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
     private final AtomicBoolean mLazySolutionFW = new AtomicBoolean(false);
     private final AtomicBoolean mDozeEnabled = new AtomicBoolean(false);
     private final AtomicBoolean mForeDozeEnabled = new AtomicBoolean(false);
+    private final AtomicBoolean mDozeElapsedRealtimeEnabled = new AtomicBoolean(false);
     private final AtomicBoolean mDisableMotionEnabled = new AtomicBoolean(false);
     private final AtomicBoolean mRedemptionEnabled = new AtomicBoolean(false);
 
@@ -1251,6 +1253,7 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
         try {
             boolean forceDoze = XAPMServerSettings.APM_FORCE_DOZE_ENABLE_B.read();
             mForeDozeEnabled.set(forceDoze);
+            mDozeElapsedRealtimeEnabled.set(XAPMServerSettings.APM_DOZE_ELAPSED_REALTIME_ENABLE_B.read());
             XposedLog.boot("forceDoze: " + String.valueOf(forceDoze));
         } catch (Throwable e) {
             XposedLog.wtf("Fail loadConfigFromSettings:" + Log.getStackTraceString(e));
@@ -1324,6 +1327,7 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
     private static final int MAX_RETRY_TIME_TO_SIZE = 99;
 
     private DeviceIdleControllerProxy mDeviceIdleController;
+    private ElapsedRealtimeDozeAlarm mElapsedRealtimeDozeAlarm;
     private PowerWhitelistBackend mPowerWhitelistBackend;
 
     private final DozeEvent mLastDozeEvent = new DozeEvent();
@@ -1453,6 +1457,11 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
         private BatterState mBatteryState;
 
         DozeHandlerImpl() {
+            mElapsedRealtimeDozeAlarm = new ElapsedRealtimeDozeAlarm(getContext(), this, () -> {
+                if (isDozeEnabled() && mDozeElapsedRealtimeEnabled.get()) {
+                    enterIdleMode(true);
+                }
+            });
             // Set doze event to init state.
             resetDozeEvent();
         }
@@ -1494,6 +1503,9 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
                 case DozeHandlerMessages.MSG_ONSCREENON:
                     DozeHandlerImpl.this.onScreenOn();
                     break;
+                case DozeHandlerMessages.MSG_SETDOZEELAPSEDREALTIMEENABLED:
+                    DozeHandlerImpl.this.setDozeElapsedRealtimeEnabled((Boolean) msg.obj);
+                    break;
             }
 
             super.handleMessage(msg);
@@ -1501,6 +1513,10 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
 
         @Override
         public void enterIdleMode() {
+            enterIdleMode(false);
+        }
+
+        private void enterIdleMode(boolean immediately) {
             int preCheckCode = isDeviceStateReadyToDoze();
             if (preCheckCode != DozeEvent.FAIL_NOOP) {
                 XposedLog.wtf(XposedLog.PREFIX_DOZE + "Device not ready!!!");
@@ -1515,7 +1531,11 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
                 return;
             }
 
-            post(mDozeStepperErrorCatch);
+            if (immediately) {
+                mDozeStepperErrorCatch.run();
+            } else {
+                post(mDozeStepperErrorCatch);
+            }
         }
 
         @Override
@@ -1569,6 +1589,7 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
                 XAPMServerSettings.APM_DOZE_ENABLE_B.write(enabled);
             }
             if (!enabled) {
+                cancelEnterIdleModePosts("Doze disabled");
                 resetDozeEvent();
             }
         }
@@ -1577,6 +1598,19 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
         public void setForceDozeEnabled(boolean enabled) {
             if (mForeDozeEnabled.compareAndSet(!enabled, enabled)) {
                 XAPMServerSettings.APM_FORCE_DOZE_ENABLE_B.write(enabled);
+            }
+        }
+
+        @Override
+        public void setDozeElapsedRealtimeEnabled(boolean enabled) {
+            if (mDozeElapsedRealtimeEnabled.compareAndSet(!enabled, enabled)) {
+                XAPMServerSettings.APM_DOZE_ELAPSED_REALTIME_ENABLE_B.write(enabled);
+                cancelEnterIdleModePosts("Doze timer changed");
+                removeCallbacks(mDozeStepperErrorCatch);
+                PowerManager powerManager = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+                if (isDozeEnabled() && powerManager != null && !powerManager.isInteractive()) {
+                    postEnterIdleMode(mDozeDelay);
+                }
             }
         }
 
@@ -1605,6 +1639,9 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
 
         @Override
         public void onScreenOn() {
+            if (mElapsedRealtimeDozeAlarm != null) {
+                mElapsedRealtimeDozeAlarm.cancel();
+            }
             // Exit doze force state.
             if (mDeviceIdleController != null) {
                 mDeviceIdleController.exitForceIdleLocked();
@@ -2205,7 +2242,12 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
         }
 
         if (mDozeHandler != null) {
-            mDozeHandler.sendEmptyMessageDelayed(DozeHandlerMessages.MSG_ENTERIDLEMODE, delay);
+            if (mDozeElapsedRealtimeEnabled.get()) {
+                mDozeHandler.removeMessages(DozeHandlerMessages.MSG_ENTERIDLEMODE);
+                mElapsedRealtimeDozeAlarm.schedule(delay);
+            } else {
+                mDozeHandler.sendEmptyMessageDelayed(DozeHandlerMessages.MSG_ENTERIDLEMODE, delay);
+            }
         } else {
             XposedLog.wtf(XposedLog.PREFIX_DOZE + "postEnterIdleMode while handler is null");
         }
@@ -2213,6 +2255,9 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
 
     private void cancelEnterIdleModePosts(String reason) {
         XposedLog.verbose(XposedLog.PREFIX_DOZE + "cancelEnterIdleModePosts: " + reason);
+        if (mElapsedRealtimeDozeAlarm != null) {
+            mElapsedRealtimeDozeAlarm.cancel();
+        }
         if (mDozeHandler != null) {
             mDozeHandler.removeMessages(DozeHandlerMessages.MSG_ENTERIDLEMODE);
         } else {
@@ -6297,6 +6342,20 @@ public class XAshmanServiceImpl extends XAshmanServiceAbs
     @Override
     public boolean isForceDozeEnabled() {
         return mForeDozeEnabled.get();
+    }
+
+    @Override
+    public void setDozeElapsedRealtimeEnabled(boolean enabled) {
+        enforceCallingPermissions();
+        if (mDozeHandler != null) {
+            mDozeHandler.obtainMessage(DozeHandlerMessages.MSG_SETDOZEELAPSEDREALTIMEENABLED, enabled)
+                    .sendToTarget();
+        }
+    }
+
+    @Override
+    public boolean isDozeElapsedRealtimeEnabled() {
+        return mDozeElapsedRealtimeEnabled.get();
     }
 
     private boolean hasDozeFeature() {
