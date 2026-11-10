@@ -359,6 +359,8 @@
     <string name="title_privacy_policy">隱私權政策</string>
     <string name="title_force_doze">強制進入</string>
     <string name="summary_doze_force">擺脫一些嚴格要求。</string>
+    <string name="title_doze_elapsed_realtime">依實際經過時間計時</string>
+    <string name="summary_doze_elapsed_realtime">裝置休眠期間也會繼續計時，到時喚醒處理器並嘗試進入打瞌睡模式；關閉後改用預設的 Handler 延遲計時。</string>
     <string name="theme_name_black">A屏黑</string>
     <string name="title_doze_fail_generic_failure">狀態改變失敗</string>
     <string name="perm_apps">按程式</string>
